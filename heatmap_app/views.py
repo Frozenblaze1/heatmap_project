@@ -503,7 +503,7 @@ def rebasing(request):
             template="plotly_dark",
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
-            width=1600,   
+            width=1400,   
             height=800,  
             margin=dict(t=30, b=50),
         )
