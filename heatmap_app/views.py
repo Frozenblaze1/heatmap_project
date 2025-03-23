@@ -6,6 +6,7 @@ import warnings
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import socket
 from matplotlib.patches import Rectangle
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from django.http import HttpResponse
@@ -24,8 +25,14 @@ plot_lock = threading.Lock()
 
 # --- Configuration Constants ---
 TIME_INTERVAL = '5min'
-TARGET_PATH = r'C:\Users\cuschierii\OneDrive - centralbankmalta.org\FX and Liquidity Management\Ad-hoc Projects\all_currencies_new'
-FILE_PATH = os.path.join(TARGET_PATH, f'{TIME_INTERVAL}_core.csv')
+
+# Robust file path handling: server vs. local
+SERVER_PATH = f'/opt/heatmap_project/data/{TIME_INTERVAL}_core.csv'
+LOCAL_PATH = os.path.join(
+    r'C:\Users\cuschierii\OneDrive - centralbankmalta.org\FX and Liquidity Management\Ad-hoc Projects\all_currencies_new',
+    f'{TIME_INTERVAL}_core.csv'
+)
+FILE_PATH = SERVER_PATH if os.path.exists(SERVER_PATH) else LOCAL_PATH
 
 # List of available currencies (should match your CSV data)
 CURRENCIES = ['EURUSD', 'EURGBP', 'EURJPY', 'EURCHF', 'EURAUD', 'EURNZD', 'EURCAD', 'EURNOK', 'EURSEK']
@@ -35,7 +42,6 @@ HOURS = list(range(24))  # assuming hourly buckets for 0-23
 # --- Default Date Range (using full datetime now) ---
 DEFAULT_START_DATE = pd.to_datetime("2023-04-13")
 DEFAULT_END_DATE = pd.to_datetime(datetime.today().strftime("%Y-%m-%d %H:%M"))
-
 # -----------------------------------------------------------------------------------
 #                           HELPER / SHARED FUNCTIONS
 # -----------------------------------------------------------------------------------
