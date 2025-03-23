@@ -9,7 +9,8 @@ SECRET_KEY = "django-insecure-ya7j64wjwknrvfjqr0rp-+ht^(luxi3$064rg(%kxvu0dl%a7y
 DEBUG = True
 
 # Replace with your real IP or domain later
-ALLOWED_HOSTS = ["161.35.204.34", "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ['161.35.204.34', 'localhost', '127.0.0.1', 'fxstatsportal.com', 'www.fxstatsportal.com']
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
