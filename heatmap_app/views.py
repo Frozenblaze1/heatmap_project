@@ -26,13 +26,17 @@ plot_lock = threading.Lock()
 # --- Configuration Constants ---
 TIME_INTERVAL = '5min'
 
-# Robust file path handling: server vs. local
-SERVER_PATH = f'/opt/heatmap_project/data/{TIME_INTERVAL}_core.csv'
-LOCAL_PATH = os.path.join(
-    r'C:\Users\cuschierii\OneDrive - centralbankmalta.org\FX and Liquidity Management\Ad-hoc Projects\all_currencies_new',
-    f'{TIME_INTERVAL}_core.csv'
-)
-FILE_PATH = SERVER_PATH if os.path.exists(SERVER_PATH) else LOCAL_PATH
+
+# Detect if we are running on server or local
+if socket.gethostname() == 'ubuntu-s-1vcpu-512mb-10gb-fra1-01':
+    # Server path (adjust if needed)
+    TARGET_PATH = '/opt/heatmap_project/data'
+else:
+    # Local machine path
+    TARGET_PATH = r'C:\Users\cuschierii\OneDrive - centralbankmalta.org\FX and Liquidity Management\Ad-hoc Projects\all_currencies_new'
+
+FILE_PATH = os.path.join(TARGET_PATH, f'{TIME_INTERVAL}_core.csv')
+
 
 # List of available currencies (should match your CSV data)
 CURRENCIES = ['EURUSD', 'EURGBP', 'EURJPY', 'EURCHF', 'EURAUD', 'EURNZD', 'EURCAD', 'EURNOK', 'EURSEK']
