@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Relative Value Rebaser</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #E0E0E0;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .navbar {
+            background-color: #333;
+            padding: 10px;
+            text-align: left;
+        }
+        .navbar a {
+            color: #fff;
+            margin-right: 20px;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .navbar a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #fff;
+        }
+        a {
+            color: #03DAC6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        /* Style for period buttons and form */
+        .period-buttons, .date-form {
+            margin: 20px 0;
+        }
+        label {
+            font-weight: bold;
+            margin: 0 5px;
+        }
+        input[type="datetime-local"], button, .period-btn {
+            background-color: #2962FF;
+            color: white;
+            border: 2px solid #1E40FF;
+            padding: 8px;
+            margin: 5px;
+            font-size: 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        button:hover, .period-btn:hover {
+            background-color: #1E40FF;
+        }
+        .chart-container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAV BAR -->
+    <div class="navbar">
+        <a href="{% url 'index' %}">Heatmaps</a>
+        <a href="{% url 'rebasing' %}">Relative Value Rebaser</a>
+    </div>
+
+    <div class="container">
+        <h1>Relative Value Rebaser</h1>
+        
+        <!-- Period Buttons -->
+        <div class="period-buttons">
+            <a href="{% url 'rebasing' %}?start_date={{ one_day }}&end_date={{ today }}" class="period-btn">1 Day</a>
+            <a href="{% url 'rebasing' %}?start_date={{ one_week }}&end_date={{ today }}" class="period-btn">1 Week</a>
+            <a href="{% url 'rebasing' %}?start_date={{ one_month }}&end_date={{ today }}" class="period-btn">1 Month</a>
+            <a href="{% url 'rebasing' %}?start_date={{ one_year }}&end_date={{ today }}" class="period-btn">1 Year</a>
+        </div>
+        
+        <!-- Date Form for Custom Range -->
+        <div class="date-form">
+            <form method="get" action="{% url 'rebasing' %}">
+                <label for="start_date">Start Date:</label>
+                <input type="datetime-local" name="start_date" id="start_date" value="{{ start_date }}">
+                <label for="end_date">End Date:</label>
+                <input type="datetime-local" name="end_date" id="end_date" value="{{ end_date }}">
+                <button type="submit">Custom Range</button>
+            </form>
+        </div>
+
+        <!-- Plotly Chart -->
+		<div class="chart-container" style="display: flex; justify-content: center; align-items: center; max-width: 1400px; margin: auto; text-align: center;">
+			{{ plot_div|safe }}
+		</div>
+
+    </div>
+</body>
+</html>

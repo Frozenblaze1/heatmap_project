@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>G10 FX Seasonality Viewer</title>
+    <style>
+        /* Dark Mode Styles */
+        body {
+            background-color: #121212;
+            color: #E0E0E0;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .navbar {
+            background-color: #333;
+            padding: 10px;
+            text-align: left;
+        }
+        .navbar a {
+            color: #fff;
+            margin-right: 20px;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .navbar a:hover {
+            text-decoration: underline;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #ffffff;
+        }
+        a {
+            color: #03DAC6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Bigger, Blue Currency Selection Button */
+        select, button {
+            background-color: #2962FF;
+            color: white;
+            border: 2px solid #1E40FF;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            outline: none;
+            cursor: pointer;
+        }
+        select:hover, button:hover {
+            background-color: #1E40FF;
+        }
+
+        /* Light Blue Earliest Button */
+        .earliest-btn {
+            background-color: #03A9F4;
+            border: none;
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+        }
+        .earliest-btn:hover {
+            background-color: #0288D1;
+        }
+
+        /* Align Currency Selection and Generate Button */
+        .form-group {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Align Date Inputs and Earliest Button */
+        .date-group {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        /* Responsive Image */
+        .responsive-image {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 8px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.6);
+            border: 2px solid #333;
+            margin-top: 10px;
+        }
+
+        /* Table Styling */
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #1E1E1E;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #444;
+        }
+        th {
+            background-color: #292929;
+            color: #E0E0E0;
+        }
+        td {
+            background-color: #1E1E1E;
+        }
+        td a {
+            color: #03DAC6;
+            font-weight: bold;
+        }
+        td a:hover {
+            color: #2962FF;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAV BAR -->
+    <div class="navbar">
+        <a href="{% url 'index' %}">Seasonaliy Viewer</a>
+        <a href="{% url 'rebasing' %}">Currency Rebaser</a>
+    </div>
+
+    <div class="container">
+        <h1>G10 FX Seasonality Viewer 🔥</h1>
+
+        <!-- Currency selection -->
+        <form method="get" action="">
+            <div class="form-group">
+                <label for="currency"><strong>Select Currency:</strong></label>
+                <select name="currency" id="currency">
+                    {% for cur in currencies %}
+                        <option value="{{ cur }}" {% if cur == selected_currency %}selected{% endif %}>{{ cur }}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit">Generate</button>
+            </div>
+
+            <br><br>
+
+            <div class="date-group">
+                <!-- Earliest Button -->
+                <button type="button" class="earliest-btn" id="set-earliest">Earliest</button>
+                <label for="start_date"><strong>Start Date:</strong></label>
+                <input type="date" id="start_date" name="start_date" value="{{ start_date }}">
+
+                <label for="end_date"><strong>End Date:</strong></label>
+                <input type="date" id="end_date" name="end_date" value="{{ end_date }}">
+            </div>
+        </form>
+
+        <!-- Heatmap image with clickable image map -->
+        <img src="{% url 'heatmap_image' %}?currency={{ selected_currency }}&start_date={{ start_date }}&end_date={{ end_date }}"
+             alt="Heatmap" usemap="#heatmapmap" class="responsive-image">
+
+        {{ image_map|safe }}
+
+        <h2>📊 Select a Time Bucket for Detailed View</h2>
+        <p>Click on a cell in table below.</p>
+
+        <table>
+            <tr>
+                <th>Day \ Hour</th>
+                {% for hour in hours %}
+                    <th>{{ hour }}H</th>
+                {% endfor %}
+            </tr>
+            {% for day in days %}
+            <tr>
+                <td><strong>{{ day }}</strong></td>
+                {% for hour in hours %}
+                    <td>
+                        <a href="/detail/?currency={{ selected_currency }}&selected_day={{ day }}&selected_hour={{ hour }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                            View
+                        </a>
+                    </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+
+        <p>
+            <small>Click on the heatmap (bottom-right) or use the table above to select a time bucket.</small>
+        </p>
+    </div>
+
+    <!-- Include imageMapResizer for responsive image map -->
+    <script src="https://cdn.jsdelivr.net/npm/image-map-resizer@1.0.10/js/imageMapResizer.min.js"></script>
+    <script>
+        window.addEventListener('load', function(){
+            imageMapResize();
+
+            // Set the earliest available start date when button is clicked
+            document.getElementById('set-earliest').addEventListener('click', function() {
+                // Earliest available date is 2023-04-13
+                document.getElementById('start_date').value = '2023-04-13';
+            });
+        });
+    </script>
+
+</body>
+</html>
