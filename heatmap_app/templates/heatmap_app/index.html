@@ -123,6 +123,7 @@
         td a {
             color: #03DAC6;
             font-weight: bold;
+            font-size: 0.8em; /* Reduced font size */
         }
         td a:hover {
             color: #2962FF;
@@ -166,11 +167,9 @@
             </div>
         </form>
 
-        <!-- Heatmap image with clickable image map -->
+        <!-- Heatmap image without clickable image map -->
         <img src="{% url 'heatmap_image' %}?currency={{ selected_currency }}&start_date={{ start_date }}&end_date={{ end_date }}"
-             alt="Heatmap" usemap="#heatmapmap" class="responsive-image">
-
-        {{ image_map|safe }}
+             alt="Heatmap" class="responsive-image">
 
         <h2>📊 Select a Time Bucket for Detailed View</h2>
         <p>Click on a cell in table below.</p>
@@ -197,16 +196,12 @@
         </table>
 
         <p>
-            <small>Click on the heatmap (bottom-right) or use the table above to select a time bucket.</small>
+            <small>Use the table above to select a time bucket for a detailed view.</small>
         </p>
     </div>
 
-    <!-- Include imageMapResizer for responsive image map -->
-    <script src="https://cdn.jsdelivr.net/npm/image-map-resizer@1.0.10/js/imageMapResizer.min.js"></script>
     <script>
         window.addEventListener('load', function(){
-            imageMapResize();
-
             // Set the earliest available start date when button is clicked
             document.getElementById('set-earliest').addEventListener('click', function() {
                 // Earliest available date is 2023-04-13
