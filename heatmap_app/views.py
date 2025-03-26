@@ -14,6 +14,7 @@ from django.shortcuts import render
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 from plotly.offline import plot
+from plotly.subplots import make_subplots
 
 # Turn off interactive plotting and warnings
 plt.ioff()
@@ -26,7 +27,6 @@ plot_lock = threading.Lock()
 # --- Configuration Constants ---
 TIME_INTERVAL = '5min'
 
-
 # Detect if we are running on server or local
 if socket.gethostname() == 'ubuntu-s-1vcpu-512mb-10gb-fra1-01':
     # Server path (adjust if needed)
@@ -37,7 +37,6 @@ else:
 
 FILE_PATH = os.path.join(TARGET_PATH, f'{TIME_INTERVAL}_core.csv')
 
-
 # List of available currencies (should match your CSV data)
 CURRENCIES = ['EURUSD', 'EURGBP', 'EURJPY', 'EURCHF', 'EURAUD', 'EURNZD', 'EURCAD', 'EURNOK', 'EURSEK']
 DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
@@ -46,6 +45,7 @@ HOURS = list(range(24))  # assuming hourly buckets for 0-23
 # --- Default Date Range (using full datetime now) ---
 DEFAULT_START_DATE = pd.to_datetime("2023-04-13")
 DEFAULT_END_DATE = pd.to_datetime(datetime.today().strftime("%Y-%m-%d %H:%M"))
+
 # -----------------------------------------------------------------------------------
 #                           HELPER / SHARED FUNCTIONS
 # -----------------------------------------------------------------------------------
@@ -140,7 +140,6 @@ def index(request):
         'end_date': end_date.strftime('%Y-%m-%d'),
     }
     return render(request, 'heatmap_app/index.html', context)
-
 
 def heatmap_image(request):
     """
@@ -243,6 +242,136 @@ def heatmap_image(request):
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
+def heatmap_image_plotly(request):
+    """
+    Returns a Plotly version of the 2x2 heatmap subplots for Wins, Losses,
+    Neutrals and Total Trades. The heatmaps are annotated with counts
+    (and percentages for Wins and Losses) and highlight the selected cell.
+    """
+    currency = request.GET.get('currency', 'EURGBP')
+    sel_day = request.GET.get('selected_day')
+    sel_hour = request.GET.get('selected_hour')
+
+    start_date = get_date_param(request, 'start_date', DEFAULT_START_DATE)
+    end_date = get_date_param(request, 'end_date', DEFAULT_END_DATE)
+
+    sel_day_int = DAY_LABELS.index(sel_day) if sel_day in DAY_LABELS else None
+    sel_hour = int(sel_hour) if sel_hour is not None else None
+
+    with plot_lock:
+        _, hourly = load_data(currency, start_date, end_date)
+
+        def reorder_days(df):
+            return df.reindex([0, 1, 2, 3, 4])  # Mon (0) to Fri (4)
+
+        wins = reorder_days(
+            hourly[hourly['hourly_return'] > 0]
+            .pivot_table(values='hourly_return', index='day', columns='hour', aggfunc='count')
+            .fillna(0)
+        )
+        losses = reorder_days(
+            hourly[hourly['hourly_return'] < 0]
+            .pivot_table(values='hourly_return', index='day', columns='hour', aggfunc='count')
+            .fillna(0)
+        )
+        neutrals = reorder_days(
+            hourly[hourly['hourly_return'] == 0]
+            .pivot_table(values='hourly_return', index='day', columns='hour', aggfunc='count')
+            .fillna(0)
+        )
+        entries = reorder_days(
+            hourly.pivot_table(values='hourly_return', index='day', columns='hour', aggfunc='count')
+            .fillna(0)
+        )
+
+    # Create a 2x2 subplot figure using Plotly
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=[
+            f'Wins (Positive Returns) for {currency}',
+            f'Losses (Negative Returns) for {currency}',
+            f'Neutrals (0 Returns) for {currency}',
+            f'Total Trades per Hour for {currency}'
+        ],
+        horizontal_spacing=0.08, vertical_spacing=0.1
+    )
+
+    # List of tuples: (data, colorscale, annotate_percentage)
+    heatmap_data = [
+        (wins, 'Greens', True),
+        (losses, 'Reds', True),
+        (neutrals, 'Oranges', False),
+        (entries, 'Viridis', False)  # Using Viridis (with reversal below) to mimic viridis_r
+    ]
+
+    def add_heatmap_to_subplot(data, colorscale, row, col, annotate_percentage=False):
+        x_vals = list(data.columns)  # Hours
+        y_vals = list(data.index)    # Days (0-4)
+        
+        trace = go.Heatmap(
+            z=data.values,
+            x=x_vals,
+            y=y_vals,
+            colorscale=colorscale,
+            reversescale=True if colorscale.lower() == 'viridis' else False,
+            colorbar=dict(title="Count"),
+            showscale=True
+        )
+        fig.add_trace(trace, row=row, col=col)
+
+        fig.update_xaxes(title_text="Hour of Day", row=row, col=col, tickmode='linear', dtick=1)
+        fig.update_yaxes(
+            title_text="Day",
+            row=row, col=col,
+            tickmode='array',
+            tickvals=[0, 1, 2, 3, 4],
+            ticktext=DAY_LABELS
+        )
+
+        # Add annotations for each cell
+        for i, y in enumerate(y_vals):
+            for j, x in enumerate(x_vals):
+                value = data.iloc[i, j]
+                text = f"{value:.0f}"
+                if annotate_percentage:
+                    total = entries.iloc[i, j]
+                    perc = (value / total * 100) if total != 0 else 0
+                    text += f"<br>{perc:.0f}%"
+                fig.add_annotation(
+                    x=x, y=y,
+                    text=text,
+                    showarrow=False,
+                    font=dict(color="white", size=10),
+                    xref="x", yref="y",
+                    row=row, col=col
+                )
+        # Add blue rectangle to highlight the selected cell if applicable
+        if sel_hour in x_vals and sel_day_int in y_vals:
+            fig.add_shape(
+                type="rect",
+                x0=sel_hour - 0.5,
+                y0=sel_day_int - 0.5,
+                x1=sel_hour + 0.5,
+                y1=sel_day_int + 0.5,
+                line=dict(color="blue", width=2),
+                row=row, col=col
+            )
+
+    positions = [(1, 1), (1, 2), (2, 1), (2, 2)]
+    for (data, colorscale, annotate_percentage), pos in zip(heatmap_data, positions):
+        add_heatmap_to_subplot(data, colorscale, pos[0], pos[1], annotate_percentage)
+
+    fig.update_layout(
+        template="plotly_dark",
+        height=700,
+        width=1200,
+        title_text=f"Heatmaps for {currency}",
+        showlegend=False,
+        margin=dict(t=80, b=50, l=50, r=50)
+    )
+
+    plot_div = fig.to_html(full_html=False, include_plotlyjs='cdn')
+    return HttpResponse(plot_div)
 
 def detail(request):
     """
@@ -263,7 +392,6 @@ def detail(request):
         'timestamp': int(time.time()),
     }
     return render(request, 'heatmap_app/detail.html', context)
-
 
 def historical_plot_image(request):
     """
@@ -324,7 +452,6 @@ def historical_plot_image(request):
     response = HttpResponse(buf.getvalue(), content_type='image/png')
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
-
 
 def line_plot_image(request):
     """
@@ -454,7 +581,6 @@ def get_rebased_data(start_date, end_date):
     rebased = (bid_df / bid_df.iloc[0] - 1) * 100
     return rebased, columns
 
-
 def rebasing(request):
     # Use full datetime for defaults (with minute resolution)
     now = datetime.now()
@@ -522,7 +648,6 @@ def rebasing(request):
     context['plot_div'] = plot_div
 
     return render(request, 'heatmap_app/rebasing.html', context)
-
 
 def rebasing_image(request):
     """
