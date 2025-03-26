@@ -139,6 +139,11 @@ def index(request):
         'start_date': start_date.strftime('%Y-%m-%d'),
         'end_date': end_date.strftime('%Y-%m-%d'),
     }
+    from .views import heatmap_image_plotly
+
+    plotly_div = heatmap_image_plotly(request).content.decode()
+    context['plotly_div'] = plotly_div
+
     return render(request, 'heatmap_app/index.html', context)
 
 def heatmap_image(request):
