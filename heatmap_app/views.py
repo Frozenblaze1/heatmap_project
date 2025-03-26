@@ -152,51 +152,51 @@ def heatmap_image(request):
 
     start_date = get_date_param(request, 'start_date', DEFAULT_START_DATE)
     end_date = get_date_param(request, 'end_date', DEFAULT_END_DATE)
-
+    
     sel_day_int = DAY_LABELS.index(sel_day) if sel_day in DAY_LABELS else None
     sel_hour = int(sel_hour) if sel_hour is not None else None
-
+    
     with plot_lock:
         _, hourly = load_data(currency, start_date, end_date)
-
-        # Helper to reorder days so it's always Mon-Fri in correct order
+    
+        # Create indicator columns for wins, losses, and neutrals so that we avoid filtering repeatedly
+        hourly['win'] = (hourly['hourly_return'] > 0).astype(int)
+        hourly['loss'] = (hourly['hourly_return'] < 0).astype(int)
+        hourly['neutral'] = (hourly['hourly_return'] == 0).astype(int)
+    
+        # Helper to reorder days so it's always Mon-Fri in the correct order
         def reorder_days(df):
             return df.reindex([0, 1, 2, 3, 4])  # Mon(0) to Fri(4)
-
-        wins = reorder_days(hourly[hourly['hourly_return'] > 0]
-                            .pivot_table(values='hourly_return', index='day', columns='hour', aggfunc='count')
-                            .fillna(0))
-        losses = reorder_days(hourly[hourly['hourly_return'] < 0]
-                              .pivot_table(values='hourly_return', index='day', columns='hour', aggfunc='count')
-                              .fillna(0))
-        neutrals = reorder_days(hourly[hourly['hourly_return'] == 0]
-                                .pivot_table(values='hourly_return', index='day', columns='hour', aggfunc='count')
-                                .fillna(0))
-        entries = reorder_days(hourly
-                               .pivot_table(values='hourly_return', index='day', columns='hour', aggfunc='count')
-                               .fillna(0))
-
-        # Apply dark background
+    
+        wins = reorder_days(hourly.pivot_table(
+            values='win', index='day', columns='hour', aggfunc='sum', fill_value=0))
+        losses = reorder_days(hourly.pivot_table(
+            values='loss', index='day', columns='hour', aggfunc='sum', fill_value=0))
+        neutrals = reorder_days(hourly.pivot_table(
+            values='neutral', index='day', columns='hour', aggfunc='sum', fill_value=0))
+        entries = reorder_days(hourly.pivot_table(
+            values='hourly_return', index='day', columns='hour', aggfunc='count', fill_value=0))
+    
         plt.style.use('dark_background')
         fig, axs = plt.subplots(2, 2, figsize=(18, 12))
-
+    
         heatmap_specs = [
             (wins, f'Wins (Positive Returns) for {currency}', 'Greens'),
             (losses, f'Losses (Negative Returns) for {currency}', 'Reds'),
             (neutrals, f'Neutrals (0 Returns) for {currency}', 'Oranges'),
             (entries, f'Total Trades per Hour for {currency}', 'viridis_r')
         ]
-
+    
         def annotate(ax, data, im, total_data=None):
             cmap = im.get_cmap()
             norm = im.norm
             for i in range(data.shape[0]):
                 for j in range(data.shape[1]):
                     value = data.iloc[i, j]
-                    rgba = cmap(norm(value))  # RGBA color
+                    rgba = cmap(norm(value))
                     brightness = (0.299 * rgba[0] + 0.587 * rgba[1] + 0.114 * rgba[2])
                     text_color = "white" if brightness < 0.5 else "black"
-
+    
                     if total_data is not None:
                         total = total_data.iloc[i, j]
                         perc = (value / total * 100) if total != 0 else 0
@@ -207,7 +207,7 @@ def heatmap_image(request):
                     else:
                         ax.text(j, i, f"{value:.0f}", ha="center", va="center",
                                 fontsize=10, color=text_color)
-
+    
         for ax, (table, title, cmap_name) in zip(axs.flatten(), heatmap_specs):
             im = ax.imshow(table, aspect='auto', origin='upper', cmap=cmap_name)
             ax.set_title(title, color='white')
@@ -216,32 +216,35 @@ def heatmap_image(request):
             ax.set_xticklabels(table.columns, color='white')
             ax.set_yticks(np.arange(len(table.index)))
             ax.set_yticklabels([DAY_LABELS[int(d)] for d in table.index], color='white')
-
+    
             if "Wins" in title or "Losses" in title:
                 annotate(ax, table, im, total_data=entries)
             else:
                 annotate(ax, table, im)
-
-            # Highlight user selection
+    
+            # Precompute list versions for efficient lookup when highlighting the user selection
+            col_list = list(table.columns)
+            row_list = list(table.index)
             if sel_hour is not None and sel_day_int is not None:
-                if sel_hour in table.columns and sel_day_int in table.index:
-                    x = list(table.columns).index(sel_hour)
-                    y = list(table.index).index(sel_day_int)
+                if sel_hour in col_list and sel_day_int in row_list:
+                    x = col_list.index(sel_hour)
+                    y = row_list.index(sel_day_int)
                     ax.add_patch(Rectangle((x - 0.5, y - 0.5), 1, 1,
                                            fill=False, edgecolor='blue', linewidth=2))
-
+    
             cbar = fig.colorbar(im, ax=ax)
             cbar.ax.yaxis.set_tick_params(color='white')
             plt.setp(cbar.ax.yaxis.get_ticklabels(), color='white')
-
+    
         buf = io.BytesIO()
         plt.tight_layout()
         plt.savefig(buf, format='png', dpi=100)
         plt.close(fig)
-
+    
     response = HttpResponse(buf.getvalue(), content_type='image/png')
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
+
 
 
 def detail(request):
